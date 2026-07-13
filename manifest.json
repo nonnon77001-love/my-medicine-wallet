@@ -1,0 +1,15 @@
+{
+  "name": "나의 약 지갑",
+  "short_name": "약 지갑",
+  "description": "응급상황에서 의료진이 빠르게 확인할 수 있는 복용약/알레르기 정보 카드",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#d32f2f",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

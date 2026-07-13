@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나의 약 지갑</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#d32f2f">
+<style>
+  :root {
+    --red: #d32f2f;
+    --red-bg: #fdecea;
+    --blue: #1565c0;
+    --gray: #555;
+    --border: #ddd;
+    --bg: #f7f7f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    background: var(--bg);
+    color: #222;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+  body.large-font { font-size: 22px; }
+
+  header {
+    background: var(--red);
+    color: #fff;
+    padding: 16px 20px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.4em;
+  }
+  header .sub {
+    font-size: 0.55em;
+    opacity: 0.9;
+    margin-top: 4px;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 12px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 68px;
+    z-index: 9;
+  }
+  button {
+    font-size: 1em;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-secondary { background: #eee; color: #222; }
+  .btn-danger { background: var(--red); color: #fff; }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 1.1em;
+    color: var(--gray);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .field-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .field { flex: 1; min-width: 120px; }
+  .field .label { font-size: 0.8em; color: var(--gray); }
+  .field .value { font-weight: bold; }
+
+  .alert-box {
+    background: var(--red-bg);
+    border: 2px solid var(--red);
+    color: var(--red);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    font-weight: bold;
+  }
+  .alert-box h2 { color: var(--red); border-bottom-color: var(--red); }
+  .alert-box .value { font-size: 1.2em; }
+
+  .med-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .med-item .med-name { font-weight: bold; font-size: 1.1em; }
+  .med-item .med-detail { color: var(--gray); font-size: 0.9em; }
+
+  .empty-note { color: #999; font-style: italic; }
+
+  /* --- Edit mode --- */
+  #editView label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--gray);
+    margin: 10px 0 4px;
+  }
+  #editView input, #editView textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 1em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #editView textarea { resize: vertical; min-height: 50px; }
+
+  .med-edit-row {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    position: relative;
+    background: #fafafa;
+  }
+  .med-edit-row .remove-med {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--red);
+    color: #fff;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 1em;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .hidden { display: none !important; }
+
+  .notify-note {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 10px 16px;
+    font-size: 0.85em;
+    color: var(--gray);
+    text-align: center;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+  }
+
+  footer {
+    text-align: center;
+    color: #999;
+    font-size: 0.8em;
+    padding: 20px;
+  }
+
+  @media print {
+    header, .toolbar, footer, #editView, .no-print { display: none !important; }
+    body { background: #fff; font-size: 16px; }
+    .card { box-shadow: none; border: 1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚨 나의 약 지갑</h1>
+  <div class="sub">응급상황 시 이 화면을 의료진에게 보여주세요</div>
+</header>
+
+<div class="toolbar no-print">
+  <button class="btn-secondary" id="toggleFontBtn">글씨 크게</button>
+  <button class="btn-secondary" id="printBtn">인쇄</button>
+  <button class="btn-secondary" id="notifyBtn">🔔 잠금화면 알림 켜기</button>
+  <button class="btn-primary" id="editBtn">✏ 정보 수정</button>
+</div>
+<div class="notify-note no-print hidden" id="notifyNote"></div>
+
+<main>
+
+  <!-- 응급 화면 (기본) -->
+  <div id="emergencyView">
+
+    <div class="alert-box">
+      <h2>⚠ 알레르기 / 주의사항</h2>
+      <div class="value" id="v-allergies">-</div>
+    </div>
+
+    <div class="card">
+      <h2>기본 정보</h2>
+      <div class="field-row">
+        <div class="field"><div class="label">이름</div><div class="value" id="v-name">-</div></div>
+        <div class="field"><div class="label">생년월일</div><div class="value" id="v-birth">-</div></div>
+        <div class="field"><div class="label">혈액형</div><div class="value" id="v-blood">-</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>지병 / 기저질환</h2>
+      <div class="value" id="v-conditions">-</div>
+    </div>
+
+    <div class="card">
+      <h2>💊 복용 중인 약</h2>
+      <div id="v-medications"></div>
+    </div>
+
+    <div class="card">
+      <h2>비상 연락처</h2>
+      <div class="field-row">
+        <div class="field"><div class="label">보호자</div><div class="value" id="v-guardianName">-</div></div>
+        <div class="field"><div class="label">연락처</div><div class="value" id="v-guardianPhone">-</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 편집 화면 -->
+  <div id="editView" class="hidden">
+
+    <div class="card">
+      <h2>기본 정보</h2>
+      <label>이름</label>
+      <input type="text" id="e-name" placeholder="예: 홍길동">
+      <label>생년월일</label>
+      <input type="text" id="e-birth" placeholder="예: 1990-01-01">
+      <label>혈액형</label>
+      <input type="text" id="e-blood" placeholder="예: A형">
+    </div>
+
+    <div class="card">
+      <h2>알레르기 / 주의사항</h2>
+      <label>약물 알레르기, 특이체질 등을 적어주세요</label>
+      <textarea id="e-allergies" placeholder="예: 페니실린 알레르기 있음"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>지병 / 기저질환</h2>
+      <textarea id="e-conditions" placeholder="예: 고혈압, 당뇨"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>💊 복용 중인 약</h2>
+      <div id="e-medications"></div>
+      <button class="btn-secondary" id="addMedBtn" style="width:100%;margin-top:8px;">+ 약 추가</button>
+    </div>
+
+    <div class="card">
+      <h2>비상 연락처</h2>
+      <label>보호자 이름</label>
+      <input type="text" id="e-guardianName" placeholder="예: 홍부모">
+      <label>보호자 연락처</label>
+      <input type="text" id="e-guardianPhone" placeholder="예: 010-1234-5678">
+    </div>
+
+    <div class="toolbar" style="background:transparent;position:static;padding:0;">
+      <button class="btn-primary" id="saveBtn" style="flex:1;">저장</button>
+      <button class="btn-secondary" id="cancelBtn" style="flex:1;">취소</button>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>입력하신 정보는 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다.</footer>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'myMedWalletData';
+
+  function defaultData() {
+    return {
+      name: '', birth: '', blood: '',
+      allergies: '', conditions: '',
+      medications: [],
+      guardianName: '', guardianPhone: ''
+    };
+  }
+
+  function loadData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultData();
+      const parsed = JSON.parse(raw);
+      return Object.assign(defaultData(), parsed);
+    } catch (e) {
+      return defaultData();
+    }
+  }
+
+  function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  let data = loadData();
+
+  const emergencyView = document.getElementById('emergencyView');
+  const editView = document.getElementById('editView');
+  const editBtn = document.getElementById('editBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const addMedBtn = document.getElementById('addMedBtn');
+  const printBtn = document.getElementById('printBtn');
+  const toggleFontBtn = document.getElementById('toggleFontBtn');
+  const notifyBtn = document.getElementById('notifyBtn');
+  const notifyNote = document.getElementById('notifyNote');
+
+  const NOTIFY_PREF_KEY = 'myMedWalletNotifyEnabled';
+  const NOTIFY_TAG = 'med-wallet-emergency';
+  const notifySupported = 'Notification' in window && 'serviceWorker' in navigator;
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  function buildNotifySummary(d) {
+    const lines = [];
+    lines.push((d.name || '이름 미입력') + (d.blood ? ' · ' + d.blood : ''));
+    if (d.allergies) lines.push('⚠ 알레르기: ' + d.allergies);
+    if (d.medications.length) {
+      const names = d.medications.map(m => m.name).filter(Boolean);
+      lines.push('💊 ' + (names.length ? names.join(', ') : d.medications.length + '건 등록'));
+    }
+    if (d.guardianPhone) lines.push('보호자: ' + d.guardianPhone + (d.guardianName ? ' (' + d.guardianName + ')' : ''));
+    return lines.join('\n') || '등록된 정보가 없습니다. 앱에서 정보를 입력해주세요.';
+  }
+
+  function refreshLockNotification() {
+    if (!notifySupported || Notification.permission !== 'granted') return;
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification('🚨 나의 약 지갑 (응급정보)', {
+        body: buildNotifySummary(data),
+        tag: NOTIFY_TAG,
+        requireInteraction: true,
+        silent: true,
+        icon: 'icon.svg',
+        badge: 'icon.svg'
+      });
+    });
+  }
+
+  function clearLockNotification() {
+    if (!notifySupported) return;
+    navigator.serviceWorker.ready.then(reg => {
+      reg.getNotifications({ tag: NOTIFY_TAG }).then(list => list.forEach(n => n.close()));
+    });
+  }
+
+  function updateNotifyButtonUI() {
+    if (!notifySupported) {
+      notifyBtn.textContent = '🔔 알림 미지원 브라우저';
+      notifyBtn.disabled = true;
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      notifyBtn.textContent = '🔔 알림 차단됨 (브라우저 설정에서 허용 필요)';
+      notifyNote.textContent = '브라우저/사이트 알림 권한이 차단되어 있습니다. 주소창 옆 사이트 설정에서 알림을 허용해주세요.';
+      notifyNote.classList.remove('hidden');
+      return;
+    }
+    const enabled = localStorage.getItem(NOTIFY_PREF_KEY) === '1';
+    notifyBtn.textContent = enabled ? '🔕 잠금화면 알림 끄기' : '🔔 잠금화면 알림 켜기';
+    notifyNote.classList.add('hidden');
+  }
+
+  notifyBtn.addEventListener('click', () => {
+    if (!notifySupported) return;
+
+    const enabled = localStorage.getItem(NOTIFY_PREF_KEY) === '1';
+    if (enabled) {
+      localStorage.setItem(NOTIFY_PREF_KEY, '0');
+      clearLockNotification();
+      updateNotifyButtonUI();
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      localStorage.setItem(NOTIFY_PREF_KEY, '1');
+      refreshLockNotification();
+      updateNotifyButtonUI();
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(perm => {
+        if (perm === 'granted') {
+          localStorage.setItem(NOTIFY_PREF_KEY, '1');
+          refreshLockNotification();
+        }
+        updateNotifyButtonUI();
+      });
+    } else {
+      updateNotifyButtonUI();
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function renderEmergencyView() {
+    document.getElementById('v-name').textContent = data.name || '미입력';
+    document.getElementById('v-birth').textContent = data.birth || '미입력';
+    document.getElementById('v-blood').textContent = data.blood || '미입력';
+    document.getElementById('v-allergies').textContent = data.allergies || '없음';
+    document.getElementById('v-conditions').textContent = data.conditions || '없음';
+    document.getElementById('v-guardianName').textContent = data.guardianName || '미입력';
+    document.getElementById('v-guardianPhone').textContent = data.guardianPhone || '미입력';
+
+    const medsEl = document.getElementById('v-medications');
+    medsEl.innerHTML = '';
+    if (!data.medications.length) {
+      medsEl.innerHTML = '<div class="empty-note">등록된 약이 없습니다.</div>';
+    } else {
+      data.medications.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'med-item';
+        div.innerHTML =
+          '<div class="med-name">' + escapeHtml(m.name || '이름 없음') + '</div>' +
+          '<div class="med-detail">용량: ' + escapeHtml(m.dose || '-') +
+          ' | 시간/주기: ' + escapeHtml(m.time || '-') +
+          ' | 목적: ' + escapeHtml(m.purpose || '-') + '</div>';
+        medsEl.appendChild(div);
+      });
+    }
+  }
+
+  function makeMedField(labelText, field, value, placeholder, idx) {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.dataset.field = field;
+    input.dataset.idx = idx;
+    input.value = value || '';
+    input.placeholder = placeholder;
+    input.addEventListener('input', () => {
+      data.medications[idx][field] = input.value;
+    });
+    const frag = document.createDocumentFragment();
+    frag.appendChild(label);
+    frag.appendChild(input);
+    return frag;
+  }
+
+  function renderMedEditRows() {
+    const container = document.getElementById('e-medications');
+    container.innerHTML = '';
+    data.medications.forEach((m, idx) => {
+      const row = document.createElement('div');
+      row.className = 'med-edit-row';
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-med';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => {
+        data.medications.splice(idx, 1);
+        renderMedEditRows();
+      });
+      row.appendChild(removeBtn);
+
+      row.appendChild(makeMedField('약 이름', 'name', m.name, '예: 아스피린', idx));
+      row.appendChild(makeMedField('용량', 'dose', m.dose, '예: 100mg', idx));
+      row.appendChild(makeMedField('복용 시간/주기', 'time', m.time, '예: 매일 아침 1회', idx));
+      row.appendChild(makeMedField('복용 목적', 'purpose', m.purpose, '예: 혈전 예방', idx));
+
+      container.appendChild(row);
+    });
+  }
+
+  function fillEditForm() {
+    document.getElementById('e-name').value = data.name;
+    document.getElementById('e-birth').value = data.birth;
+    document.getElementById('e-blood').value = data.blood;
+    document.getElementById('e-allergies').value = data.allergies;
+    document.getElementById('e-conditions').value = data.conditions;
+    document.getElementById('e-guardianName').value = data.guardianName;
+    document.getElementById('e-guardianPhone').value = data.guardianPhone;
+    renderMedEditRows();
+  }
+
+  function showEdit() {
+    fillEditForm();
+    emergencyView.classList.add('hidden');
+    editView.classList.remove('hidden');
+    editBtn.classList.add('hidden');
+  }
+
+  function showEmergency() {
+    renderEmergencyView();
+    emergencyView.classList.remove('hidden');
+    editView.classList.add('hidden');
+    editBtn.classList.remove('hidden');
+  }
+
+  editBtn.addEventListener('click', showEdit);
+
+  cancelBtn.addEventListener('click', () => {
+    data = loadData();
+    showEmergency();
+  });
+
+  addMedBtn.addEventListener('click', () => {
+    data.medications.push({ name: '', dose: '', time: '', purpose: '' });
+    renderMedEditRows();
+  });
+
+  saveBtn.addEventListener('click', () => {
+    data.name = document.getElementById('e-name').value.trim();
+    data.birth = document.getElementById('e-birth').value.trim();
+    data.blood = document.getElementById('e-blood').value.trim();
+    data.allergies = document.getElementById('e-allergies').value.trim();
+    data.conditions = document.getElementById('e-conditions').value.trim();
+    data.guardianName = document.getElementById('e-guardianName').value.trim();
+    data.guardianPhone = document.getElementById('e-guardianPhone').value.trim();
+    saveData(data);
+    showEmergency();
+    if (localStorage.getItem(NOTIFY_PREF_KEY) === '1') refreshLockNotification();
+  });
+
+  printBtn.addEventListener('click', () => window.print());
+
+  toggleFontBtn.addEventListener('click', () => {
+    document.body.classList.toggle('large-font');
+    localStorage.setItem('myMedWalletLargeFont', document.body.classList.contains('large-font') ? '1' : '0');
+  });
+
+  if (localStorage.getItem('myMedWalletLargeFont') === '1') {
+    document.body.classList.add('large-font');
+  }
+
+  updateNotifyButtonUI();
+  if (notifySupported && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+    refreshLockNotification();
+  }
+
+  renderEmergencyView();
+})();
+</script>
+
+</body>
+</html>
