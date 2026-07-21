@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>약쏙</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="shortcut icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
 <meta name="theme-color" content="#d32f2f">
 <style>
   :root {
     --red: #d32f2f;
-    --red-bg: #fdecea;
     --blue: #1565c0;
     --gray: #555;
     --border: #ddd;
@@ -89,6 +91,13 @@
   }
   .toolbar-bottom button { flex: 1; }
 
+  .inline-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .inline-actions button { flex: 1; }
+
   main {
     max-width: 640px;
     margin: 0 auto;
@@ -113,18 +122,6 @@
   .field { flex: 1; min-width: 120px; }
   .field .label { font-size: 0.8em; color: var(--gray); }
   .field .value { font-weight: bold; }
-
-  .alert-box {
-    background: var(--red-bg);
-    border: 2px solid var(--red);
-    color: var(--red);
-    border-radius: 12px;
-    padding: 18px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  .alert-box h2 { color: var(--red); border-bottom-color: var(--red); }
-  .alert-box .value { font-weight: bold; }
 
   .med-item {
     border: 1px solid var(--border);
@@ -250,6 +247,54 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .shared-banner {
+    max-width: 640px;
+    margin: 16px auto 0;
+    padding: 14px 16px;
+    background: #eef4ff;
+    border: 1px solid #c6d9f5;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: bold;
+    color: var(--blue);
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 100;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 360px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-box h2 {
+    margin: 0 0 8px;
+    font-size: 1.15em;
+  }
+  .modal-box p {
+    margin: 0 0 4px;
+  }
+  #qrCanvasWrap { display: flex; justify-content: center; margin: 14px 0; }
+  #shareLinkText {
+    width: 100%;
+    font-size: 0.7em;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: none;
+  }
+
   footer {
     text-align: center;
     color: #999;
@@ -258,7 +303,7 @@
   }
 
   @media print {
-    header, .toolbar, .toolbar-bottom, footer, #editView, .no-print { display: none !important; }
+    header, .toolbar, .toolbar-bottom, footer, #editView, .modal-backdrop, .no-print { display: none !important; }
     body { background: #fff; font-size: 16px; }
     .card { box-shadow: none; border: 1px solid #ccc; }
   }
@@ -273,9 +318,31 @@
 
 <div class="toolbar no-print">
   <button class="btn-secondary" id="notifyBtn">🔔 잠금화면 알림 켜기</button>
+  <button class="btn-secondary" id="shareBtn">📤 정보 공유</button>
   <button class="btn-primary" id="editBtn">✏ 정보 수정</button>
 </div>
 <div class="notify-note no-print hidden" id="notifyNote"></div>
+
+<div class="shared-banner no-print hidden" id="sharedBanner">
+  📤 공유받은 응급정보입니다 (읽기 전용)
+  <div class="inline-actions" style="margin-top:10px;">
+    <button class="btn-primary" id="importSharedBtn">내 기기에 저장</button>
+    <button class="btn-secondary" id="dismissSharedBtn">내 정보 보기</button>
+  </div>
+</div>
+
+<div class="modal-backdrop no-print hidden" id="shareModal">
+  <div class="modal-box">
+    <h2>📤 응급정보 공유</h2>
+    <p style="font-size:0.85em;color:#555;">보호자의 폰 카메라로 아래 QR코드를 스캔하면 같은 정보를 볼 수 있습니다.</p>
+    <div id="qrCanvasWrap"></div>
+    <textarea id="shareLinkText" rows="3" readonly></textarea>
+    <div class="inline-actions" style="margin-top:14px;">
+      <button class="btn-secondary" id="copyLinkBtn">링크 복사</button>
+      <button class="btn-primary" id="closeShareBtn">닫기</button>
+    </div>
+  </div>
+</div>
 
 <main>
 
@@ -290,7 +357,7 @@
       <div id="v-autoSummary"></div>
     </div>
 
-    <div class="alert-box">
+    <div class="card">
       <h2>⚠ 알레르기 / 주의사항<span class="badge hidden" id="v-allergySeverityBadge"></span></h2>
       <div class="value" id="v-allergies">-</div>
     </div>
@@ -385,6 +452,7 @@
 
 <footer>입력하신 정보는 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다.</footer>
 
+<script src="qrcode.min.js"></script>
 <script>
 (function () {
   const STORAGE_KEY = 'myMedWalletData';
@@ -426,6 +494,17 @@
   const toggleFontBtn = document.getElementById('toggleFontBtn');
   const notifyBtn = document.getElementById('notifyBtn');
   const notifyNote = document.getElementById('notifyNote');
+  const shareBtn = document.getElementById('shareBtn');
+  const shareModal = document.getElementById('shareModal');
+  const qrCanvasWrap = document.getElementById('qrCanvasWrap');
+  const shareLinkText = document.getElementById('shareLinkText');
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  const closeShareBtn = document.getElementById('closeShareBtn');
+  const sharedBanner = document.getElementById('sharedBanner');
+  const importSharedBtn = document.getElementById('importSharedBtn');
+  const dismissSharedBtn = document.getElementById('dismissSharedBtn');
+  const topToolbar = document.querySelector('.toolbar.no-print');
+  const bottomToolbar = document.querySelector('.toolbar-bottom');
 
   const NOTIFY_PREF_KEY = 'myMedWalletNotifyEnabled';
   const NOTIFY_TAG = 'med-wallet-emergency';
@@ -511,6 +590,95 @@
     } else {
       updateNotifyButtonUI();
     }
+  });
+
+  function base64EncodeUnicode(str) {
+    const utf8Bytes = encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    return btoa(utf8Bytes);
+  }
+
+  function base64DecodeUnicode(b64) {
+    const binary = atob(b64);
+    const percentEncoded = Array.prototype.map.call(binary, c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('');
+    return decodeURIComponent(percentEncoded);
+  }
+
+  function buildShareData(d) {
+    return {
+      name: d.name, blood: d.blood,
+      allergies: d.allergies, allergySeverity: d.allergySeverity,
+      conditions: d.conditions,
+      medications: d.medications.map(m => ({ name: m.name, dose: m.dose, time: m.time, purpose: m.purpose, critical: !!m.critical })),
+      guardianName: d.guardianName, guardianPhone: d.guardianPhone
+    };
+  }
+
+  function buildShareUrl(d) {
+    const payload = base64EncodeUnicode(JSON.stringify(buildShareData(d)));
+    return location.origin + location.pathname + '#share=' + payload;
+  }
+
+  function parseSharedHash() {
+    if (!location.hash.startsWith('#share=')) return null;
+    try {
+      const json = base64DecodeUnicode(location.hash.slice('#share='.length));
+      return Object.assign(defaultData(), JSON.parse(json));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  shareBtn.addEventListener('click', () => {
+    const url = buildShareUrl(data);
+    shareLinkText.value = url;
+    qrCanvasWrap.innerHTML = '';
+    if (typeof QRCode === 'undefined') {
+      qrCanvasWrap.textContent = 'QR코드 라이브러리를 불러오지 못했습니다 (인터넷 연결을 확인해주세요).';
+    } else {
+      const canvas = document.createElement('canvas');
+      qrCanvasWrap.appendChild(canvas);
+      QRCode.toCanvas(canvas, url, { width: 220, errorCorrectionLevel: 'L', margin: 1 }, (err) => {
+        if (err) qrCanvasWrap.textContent = 'QR코드를 생성하지 못했습니다.';
+      });
+    }
+    shareModal.classList.remove('hidden');
+  });
+
+  closeShareBtn.addEventListener('click', () => shareModal.classList.add('hidden'));
+
+  copyLinkBtn.addEventListener('click', () => {
+    shareLinkText.select();
+    const done = () => {
+      copyLinkBtn.textContent = '복사됨!';
+      setTimeout(() => { copyLinkBtn.textContent = '링크 복사'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareLinkText.value).then(done).catch(done);
+    } else {
+      document.execCommand('copy');
+      done();
+    }
+  });
+
+  function exitSharedMode() {
+    history.replaceState(null, '', location.pathname + location.search);
+    sharedBanner.classList.add('hidden');
+    topToolbar.classList.remove('hidden');
+    bottomToolbar.classList.remove('hidden');
+  }
+
+  importSharedBtn && importSharedBtn.addEventListener('click', () => {
+    data.lastUpdated = new Date().toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    saveData(data);
+    exitSharedMode();
+    updateNotifyButtonUI();
+    renderEmergencyView();
+  });
+
+  dismissSharedBtn && dismissSharedBtn.addEventListener('click', () => {
+    data = loadData();
+    exitSharedMode();
+    renderEmergencyView();
   });
 
   function escapeHtml(str) {
@@ -726,8 +894,17 @@
     document.body.classList.add('large-font');
   }
 
+  const sharedData = parseSharedHash();
+  const isSharedView = !!sharedData;
+  if (isSharedView) {
+    data = sharedData;
+    sharedBanner.classList.remove('hidden');
+    topToolbar.classList.add('hidden');
+    bottomToolbar.classList.add('hidden');
+  }
+
   updateNotifyButtonUI();
-  if (notifySupported && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+  if (!isSharedView && notifySupported && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
     refreshLockNotification();
   }
 
