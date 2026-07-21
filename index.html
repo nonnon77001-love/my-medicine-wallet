@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>나의 약 지갑</title>
+<title>약쏙</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#d32f2f">
 <style>
@@ -38,6 +38,15 @@
   header h1 {
     margin: 0;
     font-size: 1.4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  header h1 img {
+    height: 1.6em;
+    width: 1.6em;
+    display: block;
   }
   header .sub {
     font-size: 0.55em;
@@ -69,6 +78,17 @@
   .btn-secondary { background: #eee; color: #222; }
   .btn-danger { background: var(--red); color: #fff; }
 
+  .toolbar-bottom {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 640px;
+    margin: 0 auto 16px;
+    padding: 0 16px;
+  }
+  .toolbar-bottom button { flex: 1; }
+
   main {
     max-width: 640px;
     margin: 0 auto;
@@ -99,12 +119,12 @@
     border: 2px solid var(--red);
     color: var(--red);
     border-radius: 12px;
-    padding: 16px;
+    padding: 18px;
     margin-bottom: 16px;
-    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
   .alert-box h2 { color: var(--red); border-bottom-color: var(--red); }
-  .alert-box .value { font-size: 1.2em; }
+  .alert-box .value { font-weight: bold; }
 
   .med-item {
     border: 1px solid var(--border);
@@ -147,8 +167,14 @@
   .badge-critical { background: var(--red); color: #fff; }
 
   .auto-summary-card { background: #eef4ff; border: 1px solid #c6d9f5; }
-  .auto-summary-card h2 { color: var(--blue); border-bottom-color: #c6d9f5; }
-  .auto-summary-card .value { font-size: 1.05em; }
+  .auto-summary-card h2 { color: var(--blue); border-bottom-color: #c6d9f5; font-size: 1.2em; }
+  .summary-line {
+    font-size: 1.25em;
+    font-weight: bold;
+    padding: 8px 0;
+    border-bottom: 1px dashed #c6d9f5;
+  }
+  .summary-line:last-child { border-bottom: none; }
 
   .last-updated {
     text-align: center;
@@ -232,7 +258,7 @@
   }
 
   @media print {
-    header, .toolbar, footer, #editView, .no-print { display: none !important; }
+    header, .toolbar, .toolbar-bottom, footer, #editView, .no-print { display: none !important; }
     body { background: #fff; font-size: 16px; }
     .card { box-shadow: none; border: 1px solid #ccc; }
   }
@@ -241,13 +267,11 @@
 <body>
 
 <header>
-  <h1>🚨 나의 약 지갑</h1>
+  <h1><img src="icon.svg" alt="약쏙 로고"> 약쏙</h1>
   <div class="sub">응급상황 시 이 화면을 의료진에게 보여주세요</div>
 </header>
 
 <div class="toolbar no-print">
-  <button class="btn-secondary" id="toggleFontBtn">글씨 크게</button>
-  <button class="btn-secondary" id="printBtn">인쇄</button>
   <button class="btn-secondary" id="notifyBtn">🔔 잠금화면 알림 켜기</button>
   <button class="btn-primary" id="editBtn">✏ 정보 수정</button>
 </div>
@@ -263,7 +287,7 @@
 
     <div class="card auto-summary-card">
       <h2>🤖 자동 요약</h2>
-      <div class="value" id="v-autoSummary">-</div>
+      <div id="v-autoSummary"></div>
     </div>
 
     <div class="alert-box">
@@ -354,6 +378,11 @@
 
 </main>
 
+<div class="toolbar-bottom no-print">
+  <button class="btn-secondary" id="toggleFontBtn">글씨 크게</button>
+  <button class="btn-secondary" id="printBtn">인쇄</button>
+</div>
+
 <footer>입력하신 정보는 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다.</footer>
 
 <script>
@@ -421,7 +450,7 @@
   function refreshLockNotification() {
     if (!notifySupported || Notification.permission !== 'granted') return;
     navigator.serviceWorker.ready.then(reg => {
-      reg.showNotification('🚨 나의 약 지갑 (응급정보)', {
+      reg.showNotification('🚨 약쏙 (응급정보)', {
         body: buildNotifySummary(data),
         tag: NOTIFY_TAG,
         requireInteraction: true,
@@ -500,23 +529,23 @@
   }
 
   function generateAutoSummary(d) {
-    const parts = [];
-    if (d.name) parts.push(d.name);
-    if (d.blood) parts.push(d.blood);
-    if (d.allergies) parts.push('⚠ ' + d.allergies + (d.allergySeverity ? '(' + d.allergySeverity + ')' : ''));
-    if (d.conditions) parts.push(d.conditions);
+    const lines = [];
+    const idLine = [d.name, d.blood].filter(Boolean).join(' · ');
+    if (idLine) lines.push(idLine);
+    if (d.allergies) lines.push('⚠ ' + d.allergies + (d.allergySeverity ? ' (' + d.allergySeverity + ')' : ''));
+    if (d.conditions) lines.push('🩺 ' + d.conditions);
     if (d.medications.length) {
       const criticalCount = d.medications.filter(m => m.critical).length;
       const namedMeds = d.medications.map(m => m.name).filter(Boolean);
       const shown = namedMeds.slice(0, 2);
-      let medPart = '💊 ' + (shown.length ? shown.join(', ') : d.medications.length + '종');
-      if (d.medications.length > shown.length) medPart += ' 외 ' + (d.medications.length - shown.length) + '종';
-      if (criticalCount) medPart += ' (필수약물 ' + criticalCount + '건 포함)';
-      parts.push(medPart);
+      let medLine = '💊 ' + (shown.length ? shown.join(', ') : d.medications.length + '종');
+      if (d.medications.length > shown.length) medLine += ' 외 ' + (d.medications.length - shown.length) + '종';
+      if (criticalCount) medLine += ' (필수약물 ' + criticalCount + '건)';
+      lines.push(medLine);
     }
-    if (d.guardianPhone) parts.push('보호자 ' + d.guardianPhone);
-    if (!parts.length) return '등록된 정보가 없습니다. "정보 수정"에서 입력해주세요.';
-    return parts.join(' · ');
+    if (d.guardianPhone) lines.push('☎ 보호자 ' + d.guardianPhone);
+    if (!lines.length) return ['등록된 정보가 없습니다. "정보 수정"에서 입력해주세요.'];
+    return lines;
   }
 
   function renderEmergencyView() {
@@ -533,7 +562,14 @@
     riskBanner.textContent = risk.label;
     riskBanner.className = 'risk-banner risk-' + risk.level;
 
-    document.getElementById('v-autoSummary').textContent = generateAutoSummary(data);
+    const summaryEl = document.getElementById('v-autoSummary');
+    summaryEl.innerHTML = '';
+    generateAutoSummary(data).forEach(line => {
+      const div = document.createElement('div');
+      div.className = 'summary-line';
+      div.textContent = line;
+      summaryEl.appendChild(div);
+    });
 
     const lastUpdatedEl = document.getElementById('lastUpdated');
     lastUpdatedEl.textContent = data.lastUpdated ? '마지막 업데이트: ' + data.lastUpdated : '';
