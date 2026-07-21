@@ -112,10 +112,65 @@
     padding: 10px 12px;
     margin-bottom: 8px;
   }
+  .med-item.critical { border-color: var(--red); border-width: 2px; }
   .med-item .med-name { font-weight: bold; font-size: 1.1em; }
   .med-item .med-detail { color: var(--gray); font-size: 0.9em; }
 
   .empty-note { color: #999; font-style: italic; }
+
+  /* --- 위험도 배지 / 배너 --- */
+  .risk-banner {
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.1em;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    color: #fff;
+  }
+  .risk-banner.risk-danger { background: #b71c1c; }
+  .risk-banner.risk-caution { background: #e65100; }
+  .risk-banner.risk-safe { background: #2e7d32; }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7em;
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .badge-severe { background: #b71c1c; color: #fff; }
+  .badge-moderate { background: #e65100; color: #fff; }
+  .badge-mild { background: #f9a825; color: #222; }
+  .badge-critical { background: var(--red); color: #fff; }
+
+  .auto-summary-card { background: #eef4ff; border: 1px solid #c6d9f5; }
+  .auto-summary-card h2 { color: var(--blue); border-bottom-color: #c6d9f5; }
+  .auto-summary-card .value { font-size: 1.05em; }
+
+  .last-updated {
+    text-align: center;
+    color: var(--gray);
+    font-size: 0.8em;
+    margin: -8px 0 16px;
+  }
+
+  .critical-check-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .critical-check-row input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+  }
+  .critical-check-row label {
+    margin: 0;
+    font-size: 0.9em;
+  }
 
   /* --- Edit mode --- */
   #editView label {
@@ -124,12 +179,13 @@
     color: var(--gray);
     margin: 10px 0 4px;
   }
-  #editView input, #editView textarea {
+  #editView input, #editView textarea, #editView select {
     width: 100%;
     padding: 10px;
     font-size: 1em;
     border: 1px solid var(--border);
     border-radius: 8px;
+    background: #fff;
   }
   #editView textarea { resize: vertical; min-height: 50px; }
 
@@ -202,8 +258,16 @@
   <!-- 응급 화면 (기본) -->
   <div id="emergencyView">
 
+    <div class="risk-banner" id="riskBanner"></div>
+    <div class="last-updated" id="lastUpdated"></div>
+
+    <div class="card auto-summary-card">
+      <h2>🤖 자동 요약</h2>
+      <div class="value" id="v-autoSummary">-</div>
+    </div>
+
     <div class="alert-box">
-      <h2>⚠ 알레르기 / 주의사항</h2>
+      <h2>⚠ 알레르기 / 주의사항<span class="badge hidden" id="v-allergySeverityBadge"></span></h2>
       <div class="value" id="v-allergies">-</div>
     </div>
 
@@ -253,6 +317,13 @@
       <h2>알레르기 / 주의사항</h2>
       <label>약물 알레르기, 특이체질 등을 적어주세요</label>
       <textarea id="e-allergies" placeholder="예: 페니실린 알레르기 있음"></textarea>
+      <label>위험도</label>
+      <select id="e-allergySeverity">
+        <option value="">선택 안함</option>
+        <option value="경미">경미</option>
+        <option value="보통">보통</option>
+        <option value="심각">심각</option>
+      </select>
     </div>
 
     <div class="card">
@@ -292,9 +363,10 @@
   function defaultData() {
     return {
       name: '', birth: '', blood: '',
-      allergies: '', conditions: '',
+      allergies: '', allergySeverity: '', conditions: '',
       medications: [],
-      guardianName: '', guardianPhone: ''
+      guardianName: '', guardianPhone: '',
+      lastUpdated: ''
     };
   }
 
@@ -418,6 +490,35 @@
     return div.innerHTML;
   }
 
+  function computeRiskLevel(d) {
+    const hasCriticalMed = d.medications.some(m => m.critical);
+    if (d.allergySeverity === '심각') return { level: 'danger', label: '🔴 종합 위험도: 위험' };
+    if (d.allergySeverity === '보통' || hasCriticalMed || d.conditions || (d.allergies && !d.allergySeverity)) {
+      return { level: 'caution', label: '🟠 종합 위험도: 주의' };
+    }
+    return { level: 'safe', label: '🟢 종합 위험도: 정상' };
+  }
+
+  function generateAutoSummary(d) {
+    const parts = [];
+    if (d.name) parts.push(d.name);
+    if (d.blood) parts.push(d.blood);
+    if (d.allergies) parts.push('⚠ ' + d.allergies + (d.allergySeverity ? '(' + d.allergySeverity + ')' : ''));
+    if (d.conditions) parts.push(d.conditions);
+    if (d.medications.length) {
+      const criticalCount = d.medications.filter(m => m.critical).length;
+      const namedMeds = d.medications.map(m => m.name).filter(Boolean);
+      const shown = namedMeds.slice(0, 2);
+      let medPart = '💊 ' + (shown.length ? shown.join(', ') : d.medications.length + '종');
+      if (d.medications.length > shown.length) medPart += ' 외 ' + (d.medications.length - shown.length) + '종';
+      if (criticalCount) medPart += ' (필수약물 ' + criticalCount + '건 포함)';
+      parts.push(medPart);
+    }
+    if (d.guardianPhone) parts.push('보호자 ' + d.guardianPhone);
+    if (!parts.length) return '등록된 정보가 없습니다. "정보 수정"에서 입력해주세요.';
+    return parts.join(' · ');
+  }
+
   function renderEmergencyView() {
     document.getElementById('v-name').textContent = data.name || '미입력';
     document.getElementById('v-birth').textContent = data.birth || '미입력';
@@ -427,16 +528,36 @@
     document.getElementById('v-guardianName').textContent = data.guardianName || '미입력';
     document.getElementById('v-guardianPhone').textContent = data.guardianPhone || '미입력';
 
+    const risk = computeRiskLevel(data);
+    const riskBanner = document.getElementById('riskBanner');
+    riskBanner.textContent = risk.label;
+    riskBanner.className = 'risk-banner risk-' + risk.level;
+
+    document.getElementById('v-autoSummary').textContent = generateAutoSummary(data);
+
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    lastUpdatedEl.textContent = data.lastUpdated ? '마지막 업데이트: ' + data.lastUpdated : '';
+
+    const severityBadge = document.getElementById('v-allergySeverityBadge');
+    if (data.allergySeverity) {
+      const cls = data.allergySeverity === '심각' ? 'badge-severe' : (data.allergySeverity === '보통' ? 'badge-moderate' : 'badge-mild');
+      severityBadge.textContent = data.allergySeverity;
+      severityBadge.className = 'badge ' + cls;
+    } else {
+      severityBadge.className = 'badge hidden';
+    }
+
     const medsEl = document.getElementById('v-medications');
     medsEl.innerHTML = '';
     if (!data.medications.length) {
       medsEl.innerHTML = '<div class="empty-note">등록된 약이 없습니다.</div>';
     } else {
-      data.medications.forEach(m => {
+      const sortedMeds = data.medications.slice().sort((a, b) => (b.critical ? 1 : 0) - (a.critical ? 1 : 0));
+      sortedMeds.forEach(m => {
         const div = document.createElement('div');
-        div.className = 'med-item';
+        div.className = 'med-item' + (m.critical ? ' critical' : '');
         div.innerHTML =
-          '<div class="med-name">' + escapeHtml(m.name || '이름 없음') + '</div>' +
+          '<div class="med-name">' + (m.critical ? '<span class="badge badge-critical">★ 필수</span> ' : '') + escapeHtml(m.name || '이름 없음') + '</div>' +
           '<div class="med-detail">용량: ' + escapeHtml(m.dose || '-') +
           ' | 시간/주기: ' + escapeHtml(m.time || '-') +
           ' | 목적: ' + escapeHtml(m.purpose || '-') + '</div>';
@@ -485,6 +606,22 @@
       row.appendChild(makeMedField('복용 시간/주기', 'time', m.time, '예: 매일 아침 1회', idx));
       row.appendChild(makeMedField('복용 목적', 'purpose', m.purpose, '예: 혈전 예방', idx));
 
+      const checkRow = document.createElement('div');
+      checkRow.className = 'critical-check-row';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = 'e-med-critical-' + idx;
+      checkbox.checked = !!m.critical;
+      checkbox.addEventListener('change', () => {
+        data.medications[idx].critical = checkbox.checked;
+      });
+      const checkLabel = document.createElement('label');
+      checkLabel.htmlFor = checkbox.id;
+      checkLabel.textContent = '⭐ 중요(필수) 약물로 표시';
+      checkRow.appendChild(checkbox);
+      checkRow.appendChild(checkLabel);
+      row.appendChild(checkRow);
+
       container.appendChild(row);
     });
   }
@@ -494,6 +631,7 @@
     document.getElementById('e-birth').value = data.birth;
     document.getElementById('e-blood').value = data.blood;
     document.getElementById('e-allergies').value = data.allergies;
+    document.getElementById('e-allergySeverity').value = data.allergySeverity || '';
     document.getElementById('e-conditions').value = data.conditions;
     document.getElementById('e-guardianName').value = data.guardianName;
     document.getElementById('e-guardianPhone').value = data.guardianPhone;
@@ -522,7 +660,7 @@
   });
 
   addMedBtn.addEventListener('click', () => {
-    data.medications.push({ name: '', dose: '', time: '', purpose: '' });
+    data.medications.push({ name: '', dose: '', time: '', purpose: '', critical: false });
     renderMedEditRows();
   });
 
@@ -531,9 +669,11 @@
     data.birth = document.getElementById('e-birth').value.trim();
     data.blood = document.getElementById('e-blood').value.trim();
     data.allergies = document.getElementById('e-allergies').value.trim();
+    data.allergySeverity = document.getElementById('e-allergySeverity').value;
     data.conditions = document.getElementById('e-conditions').value.trim();
     data.guardianName = document.getElementById('e-guardianName').value.trim();
     data.guardianPhone = document.getElementById('e-guardianPhone').value.trim();
+    data.lastUpdated = new Date().toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     saveData(data);
     showEmergency();
     if (localStorage.getItem(NOTIFY_PREF_KEY) === '1') refreshLockNotification();
